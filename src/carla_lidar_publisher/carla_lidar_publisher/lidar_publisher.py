@@ -74,9 +74,23 @@ class LidarPublisher(Node):
         #np.frombuffer turns the raw data to a float32 array and reshaping makes it nx4 matrix. x,y,z and intensity
         points = np.frombuffer(data.raw_data, dtype=np.float32).reshape(-1, 4)
 
+        """ 
+        http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud2.html
+
+        std_msgs/Header header
+            uint32 height
+            uint32 width
+        sensor_msgs/PointField[] fields
+            bool is_bigendian
+            uint32 point_step
+            uint32 row_step
+            uint8[] data
+            bool is_dense
+        """
+
         msg = PointCloud2()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "map"
+        msg.header.frame_id = "lidar"
 
         msg.fields = [
             PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
@@ -87,8 +101,12 @@ class LidarPublisher(Node):
 
         msg.point_step = 16 #4 fields * 4 bytes each = 16 bytes total
         msg.row_step = msg.point_step * len(points) #total size of the msg
+        msg.height = 1
+        msg.width = len(points)
+
+
         msg.is_dense = True #true for ignoring nan and inf nums
-        #msg.is_bigendian = False
+        msg.is_bigendian = False
         msg.data = points.astype(np.float32).tobytes() #converting numpy array to raw byte array
 
         self.publisher.publish(msg)

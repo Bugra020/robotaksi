@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'lidar_publisher = carla_lidar_publisher.lidar_publisher:main'
+            'lidar_publisher = carla_lidar_publisher.lidar_publisher:main',
+            'static_tf_publisher = carla_lidar_publisher.static_tf_publisher:main',
         ],
     },
 )
