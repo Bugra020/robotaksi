@@ -5,7 +5,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2, PointField
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 def debug(debug_msg):
     if DEBUG_MODE:
