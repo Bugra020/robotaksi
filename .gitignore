@@ -21,3 +21,5 @@ PythonAPI/carla/
 
 .DS_Store
 Thumbs.db
+
+*.pcd
