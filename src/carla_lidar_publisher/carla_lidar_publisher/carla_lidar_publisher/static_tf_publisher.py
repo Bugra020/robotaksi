@@ -1,5 +1,4 @@
 import rclpy
-from builtin_interfaces.msg import Time
 from geometry_msgs.msg import TransformStamped
 from rclpy.node import Node
 from tf2_ros import StaticTransformBroadcaster
@@ -10,25 +9,41 @@ class StaticTFPublisher(Node):
         super().__init__("static_tf_publisher")
 
         self.br = StaticTransformBroadcaster(self)
+        self.publish_static_transforms()
 
-        static_transform = TransformStamped()
+    def publish_static_transforms(self):
+        transforms = []
+# for lidar
+        t1 = TransformStamped()
+        t1.header.stamp = self.get_clock().now().to_msg()
+        t1.header.frame_id = "base_link"
+        t1.child_frame_id = "lidar_frame"
+        t1.transform.translation.x = 0.0
+        t1.transform.translation.y = 0.0
+        t1.transform.translation.z = 2.5
+        t1.transform.rotation.x = 0.0
+        t1.transform.rotation.y = 0.0
+        t1.transform.rotation.z = 0.0
+        t1.transform.rotation.w = 1.0
+        transforms.append(t1)
+# for occuapncy grid
+        t2 = TransformStamped()
+        t2.header.stamp = self.get_clock().now().to_msg()
+        t2.header.frame_id = "map"
+        t2.child_frame_id = "base_link"
+        t2.transform.translation.x = 0.0
+        t2.transform.translation.y = 0.0
+        t2.transform.translation.z = 0.0
+        t2.transform.rotation.x = 0.0
+        t2.transform.rotation.y = 0.0
+        t2.transform.rotation.z = 0.0
+        t2.transform.rotation.w = 1.0
+        transforms.append(t2)
 
-        static_transform.header.stamp = self.get_clock().now().to_msg()
-        static_transform.header.frame_id = "base_link"
-        static_transform.child_frame_id = "lidar_frame"
-
-        static_transform.transform.translation.x = 0.0  # No movement in the x-axis
-        static_transform.transform.translation.y = 0.0  # No movement in the y-axis
-        static_transform.transform.translation.z = 0.2  # 0.2 meters above base_link
-
-        static_transform.transform.rotation.x = 0.0
-        static_transform.transform.rotation.y = 0.0
-        static_transform.transform.rotation.z = 0.0
-        static_transform.transform.rotation.w = 1.0  # Identity quaternion (no rotation)
-
-        self.br.sendTransform(static_transform)
-
-        self.get_logger().info("Broadcasting static transform from base_link to lidar")
+        self.br.sendTransform(transforms)
+        self.get_logger().info(
+            "Broadcasting static transforms for lidar and occupancy grid map"
+        )
 
 
 def main(args=None):

@@ -3,10 +3,12 @@ ROS_BRIDGE=ros2 launch carla_ros_bridge carla_ros_bridge.launch.py
 LIDAR_PUBLISHER=ros2 run carla_lidar_publisher lidar_publisher
 STATIC_TF_PUBLISHER=ros2 run carla_lidar_publisher static_tf_publisher
 DYNAMIC_TF_PUBLISHER=ros2 run carla_lidar_publisher dynamic_tf_publisher
+CLOUD_TO_GRID=ros2 run carla_lidar_publisher occupancy_grid_publisher
 
 run: kill
 	@echo "Starting CARLA Simulator..."
-	@(${CARLA_SERVER} -RenderOffScreen > /dev/null 2>&1 &)
+	#@(${CARLA_SERVER} -RenderOffScreen > /dev/null 2>&1 &)
+	@(${CARLA_SERVER} > /dev/null 2>&1 &)
 	@sleep 15
 
 	@echo "Starting ROS2 Bridge..."
@@ -21,7 +23,11 @@ run: kill
 	@(${DYNAMIC_TF_PUBLISHER} > /dev/null 2>&1 &)
 	@sleep 1
 
-	@echo "Running the Spawn Script..."
+	@echo "running the occupancy grid converter..."
+	@(${CLOUD_TO_GRID} > /dev/null 2>&1 &)
+	@sleep 1
+
+	@echo "Running the LIDAR Script..."
 	@(${LIDAR_PUBLISHER})
  
 kill:
@@ -30,5 +36,7 @@ kill:
 	@-pkill -f carla_ros_bridge > /dev/null 2>&1 || true
 	@-pkill -f static_tf_publisher > /dev/null 2>&1 || true
 	@-pkill -f dynamic_tf_publisher > /dev/null 2>&1 || true
+	@-pkill -f lidar_publisher > /dev/null 2>&1 || true
+	@-pkill -f occupancy_grid_publisher > /dev/null 2>&1 || true
 
 restart: kill run

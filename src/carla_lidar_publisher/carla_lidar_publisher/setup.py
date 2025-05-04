@@ -26,6 +26,7 @@ setup(
             'lidar_publisher = carla_lidar_publisher.lidar_publisher:main',
             'static_tf_publisher = carla_lidar_publisher.static_tf_publisher:main',
             'dynamic_tf_publisher = carla_lidar_publisher.dynamic_tf_publisher:main',
+            'occupancy_grid_publisher = carla_lidar_publisher.occupancy_grid_publisher:main',
         ],
     },
 )

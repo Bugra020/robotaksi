@@ -1,3 +1,4 @@
+import math
 import time
 
 import carla
@@ -23,6 +24,7 @@ class LidarPublisher(Node):
         self.client = None
         self.world = None
         self.blueprint_lib = None
+        self.spectator = None
         self.connect_carla()
         debug("compleated connecting to carla")
 
@@ -38,6 +40,7 @@ class LidarPublisher(Node):
         debug("got the world from carla")
         self.blueprint_lib = self.world.get_blueprint_library()
         debug("got the blueprint lib from carla")
+        self.spectator = self.world.get_spectator()
 
     def spawn_car_with_lidar(self):
         debug("spawing car with lidar")
@@ -67,7 +70,8 @@ class LidarPublisher(Node):
 
             while True:
                 self.world.tick()
-                time.sleep(1)
+                self.update_spectator_view()
+                # time.sleep(0.5)
         except KeyboardInterrupt:
             print("\nkeyboardinterrupt killing the program")
         finally:
@@ -77,6 +81,33 @@ class LidarPublisher(Node):
             if self.lidar_sensor is not None:
                 self.lidar_sensor.destroy()
                 print("destroyed the lidar sensor")
+
+    def update_spectator_view(self):
+        if self.car is None or self.spectator is None:
+            return
+
+        transform = self.car.get_transform()
+        location = transform.location
+        rotation = transform.rotation
+
+
+        yaw_rad = math.radians(rotation.yaw)
+
+        distance_behind = 10
+        height_above = 20
+
+        offset_x = -distance_behind * math.cos(yaw_rad)
+        offset_y = -distance_behind * math.sin(yaw_rad)
+
+        camera_location = carla.Location(
+            x=location.x + offset_x,
+            y=location.y + offset_y,
+            z=location.z + height_above,
+        )
+
+        camera_rotation = carla.Rotation(pitch=-30, yaw=rotation.yaw, roll=0)
+
+        self.spectator.set_transform(carla.Transform(camera_location, camera_rotation))
 
     def lidar_callback(self, data):
         # np.frombuffer turns the raw data to a float32 array and reshaping makes it nx4 matrix. x,y,z and intensity
@@ -96,7 +127,7 @@ class LidarPublisher(Node):
 
         msg = PointCloud2()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "lidar"
+        msg.header.frame_id = "lidar_frame"
 
         msg.fields = [
             PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
@@ -119,7 +150,7 @@ class LidarPublisher(Node):
         ).tobytes()  # converting numpy array to raw byte array
 
         self.publisher.publish(msg)
-        debug(f"published {msg.row_step} bytes of lidar data!")
+        # debug(f"published {msg.row_step} bytes of lidar data!")
 
 
 def main():

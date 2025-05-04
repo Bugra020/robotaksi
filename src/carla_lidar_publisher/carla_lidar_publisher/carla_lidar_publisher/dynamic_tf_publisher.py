@@ -8,7 +8,7 @@ from rclpy.node import Node
 
 class DynamicTFPublisher(Node):
     def __init__(self, vehicle):
-        super().__init__("carla_tf_publisher")
+        super().__init__("dynamic_tf_publisher")
         self.vehicle = vehicle
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
         self.timer = self.create_timer(0.05, self.publish_tf)  # Publish at 20Hz
@@ -41,9 +41,9 @@ def main():
     client.set_timeout(5.0)
 
     world = client.get_world()
-    vehicle = world.get_actors().filter("vehicle.*")[0]  # Assuming 1 vehicle
+    vehicle = world.get_actors().filter("vehicle.*")[0]
 
-    node = CarlaTFPublisher(vehicle)
+    node = DynamicTFPublisher(vehicle)
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
