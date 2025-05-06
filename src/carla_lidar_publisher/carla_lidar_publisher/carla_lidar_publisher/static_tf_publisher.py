@@ -26,19 +26,20 @@ class StaticTFPublisher(Node):
         t1.transform.rotation.z = 0.0
         t1.transform.rotation.w = 1.0
         transforms.append(t1)
-# for occuapncy grid
-        t2 = TransformStamped()
-        t2.header.stamp = self.get_clock().now().to_msg()
-        t2.header.frame_id = "map"
-        t2.child_frame_id = "base_link"
-        t2.transform.translation.x = 0.0
-        t2.transform.translation.y = 0.0
-        t2.transform.translation.z = 0.0
-        t2.transform.rotation.x = 0.0
-        t2.transform.rotation.y = 0.0
-        t2.transform.rotation.z = 0.0
-        t2.transform.rotation.w = 1.0
-        transforms.append(t2)
+
+        # for occuapncy grid
+        #t2 = TransformStamped()
+        #t2.header.stamp = self.get_clock().now().to_msg()
+        #t2.header.frame_id = "map"
+        #t2.child_frame_id = "base_link"
+        #t2.transform.translation.x = 0.0
+        #t2.transform.translation.y = 0.0
+        #t2.transform.translation.z = 0.0
+        #t2.transform.rotation.x = 0.0
+        #t2.transform.rotation.y = 0.0
+        #t2.transform.rotation.z = 0.0
+        #t2.transform.rotation.w = 1.0
+        #transforms.append(t2)
 
         self.br.sendTransform(transforms)
         self.get_logger().info(
