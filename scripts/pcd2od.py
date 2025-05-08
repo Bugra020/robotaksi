@@ -71,7 +71,9 @@ def main():
     )
 
     plt.imshow(occupancy_grid, cmap="gray", origin="lower")
-    plt.title(f"res={res_arg}, grid_filtering={min_points_arg}, {z_min_arg}<z<{z_max_arg}")
+    plt.title(
+        f"res={res_arg}, grid_filtering={min_points_arg}, {z_min_arg}<z<{z_max_arg}"
+    )
     plt.show()
 
     Image.fromarray(occupancy_grid).save("occupancy_map.png")

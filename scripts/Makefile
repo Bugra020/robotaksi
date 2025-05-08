@@ -7,29 +7,26 @@ CLOUD_TO_GRID=ros2 run carla_lidar_publisher occupancy_grid_publisher
 
 run: kill
 	@echo "Starting CARLA Simulator..."
-	#@(${CARLA_SERVER} -RenderOffScreen > /dev/null 2>&1 &)
-	@(${CARLA_SERVER} > /dev/null 2>&1 &)
+	@(${CARLA_SERVER} -RenderOffScreen > /dev/null 2>&1 &)
+	#@(${CARLA_SERVER} > /dev/null 2>&1 &)
 	@sleep 15
 
 	@echo "Starting ROS2 Bridge..."
 	@(${ROS_BRIDGE} > /dev/null 2>&1 &)
 	@sleep 5
-
-	@echo "Running the static tf publisher..."
-	@(${STATIC_TF_PUBLISHER} > /dev/null 2>&1 &)
-	@sleep 1
 	
-	@echo "Running the dynamic tf publisher..."
-	@(${DYNAMIC_TF_PUBLISHER} > /dev/null 2>&1 &)
-	@sleep 1
-
-	@echo "running the occupancy grid converter..."
-	@(${CLOUD_TO_GRID} > /dev/null 2>&1 &)
-	@sleep 1
+	#@echo "Running the static tf publisher..."
+	#@(${STATIC_TF_PUBLISHER} > /dev/null 2>&1 &)
+	
+	#@echo "Running the dynamic tf publisher..."
+	#@(${DYNAMIC_TF_PUBLISHER} > /dev/null 2>&1 &)
 
 	@echo "Running the LIDAR Script..."
 	@(${LIDAR_PUBLISHER})
- 
+
+	#@echo "running the occupancy grid converter..."
+	#@(${CLOUD_TO_GRID} > /dev/null 2>&1 &)
+
 kill:
 	@echo "Stopping CARLA, ROS bridge, static_tf_publisher and dynamic_tf_publisher..."
 	@-pkill -f CarlaUE4 > /dev/null 2>&1 || true

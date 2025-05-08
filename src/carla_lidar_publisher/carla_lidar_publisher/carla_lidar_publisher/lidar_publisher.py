@@ -65,7 +65,7 @@ class LidarPublisher(Node):
 
             self.lidar_sensor.listen(self.lidar_callback)
 
-            self.car.set_autopilot(True)
+            self.car.set_autopilot(False)
             debug("car with lidar spawned successfully")
 
             while True:
