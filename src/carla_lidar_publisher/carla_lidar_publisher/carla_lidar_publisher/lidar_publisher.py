@@ -1,6 +1,7 @@
 import math
 import os
 import sys
+import time
 
 import carla
 import cv2
@@ -39,14 +40,25 @@ class LidarPublisher(Node):
         self.model = YOLO(self.model_path)
 
         self.connect_carla()
+        while self.world.get_map() is None:
+            debug("waiting for the map to load...")
+            time.sleep(1)
         self.spawn_car_with_sensors()
 
     def connect_carla(self):
-        self.client = carla.Client("localhost", 2000)
-        self.client.set_timeout(15.0)
-        self.world = self.client.get_world()
-        self.blueprint_lib = self.world.get_blueprint_library()
-        self.spectator = self.world.get_spectator()
+        connected = False
+        while not connected:
+            try:
+                self.client = carla.Client("localhost", 2000)
+                self.client.set_timeout(30.0)
+                self.world = self.client.get_world()
+                self.blueprint_lib = self.world.get_blueprint_library()
+                self.spectator = self.world.get_spectator()
+                connected = True
+                debug("Connected to CARLA simulator.")
+            except RuntimeError as e:
+                debug(f"CARLA not ready yet: {e}")
+                time.sleep(2)
 
     def spawn_car_with_sensors(self):
         lidar_bp = self.blueprint_lib.find("sensor.lidar.ray_cast")
@@ -77,14 +89,20 @@ class LidarPublisher(Node):
                 camera_bp, camera_transform, attach_to=self.car
             )
 
+            self.world.tick()
+            time.sleep(1)
+            self.world.tick()
+
             self.lidar_sensor.listen(self.lidar_callback)
             self.camera_sensor.listen(self.camera_callback)
 
             self.car.set_autopilot(False)
 
-            while True:
-                self.world.tick()
+            while rclpy.ok():
+                self.world.wait_for_tick(15.0)
                 self.update_spectator_view()
+        except RuntimeError as e:
+            print(f"CARLA error: {e}.")
         except KeyboardInterrupt:
             pass
         finally:

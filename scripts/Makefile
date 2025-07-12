@@ -1,4 +1,6 @@
 CARLA_SERVER=~/carla/Dist/CARLA_Shipping_0.9.15-262-g8f7e40f3c-dirty/LinuxNoEditor/CarlaUE4.sh
+CARLA_FLAGS=-RenderOffScreen -carla-map=Town01 -nosound -quality-level=Low -fps=10 -benchmark -carla-server
+
 ROS_BRIDGE=ros2 launch carla_ros_bridge carla_ros_bridge.launch.py
 LIDAR_PUBLISHER=ros2 run carla_lidar_publisher lidar_publisher
 STATIC_TF_PUBLISHER=ros2 run carla_lidar_publisher static_tf_publisher
@@ -6,9 +8,8 @@ DYNAMIC_TF_PUBLISHER=ros2 run carla_lidar_publisher dynamic_tf_publisher
 CLOUD_TO_GRID=ros2 run carla_lidar_publisher occupancy_grid_publisher
 
 run: kill
-	@echo "Starting CARLA Simulator..."
-	@(${CARLA_SERVER} -RenderOffScreen > /dev/null 2>&1 &)
-	#@(${CARLA_SERVER} > /dev/null 2>&1 &)
+	@echo "Starting CARLA Simulator in low-performance mode..."
+	@(${CARLA_SERVER} ${CARLA_FLAGS} > /dev/null 2>&1 &)
 	@sleep 15
 
 	@echo "Starting ROS2 Bridge..."
@@ -37,3 +38,4 @@ kill:
 	@-pkill -f occupancy_grid_publisher > /dev/null 2>&1 || true
 
 restart: kill run
+
