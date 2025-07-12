@@ -15,11 +15,11 @@ run: kill
 	@(${ROS_BRIDGE} > /dev/null 2>&1 &)
 	@sleep 5
 	
-	#@echo "Running the static tf publisher..."
-	#@(${STATIC_TF_PUBLISHER} > /dev/null 2>&1 &)
+	@echo "Running the static tf publisher..."
+	@(${STATIC_TF_PUBLISHER} > /dev/null 2>&1 &)
 	
-	#@echo "Running the dynamic tf publisher..."
-	#@(${DYNAMIC_TF_PUBLISHER} > /dev/null 2>&1 &)
+	@echo "Running the dynamic tf publisher..."
+	@(${DYNAMIC_TF_PUBLISHER} > /dev/null 2>&1 &)
 
 	@echo "Running the LIDAR Script..."
 	@(${LIDAR_PUBLISHER})

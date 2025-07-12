@@ -13,6 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
+        (os.path.join('share', package_name, 'models'), glob(os.path.join(package_name, package_name, 'VoltarisSim.pt'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -27,6 +28,7 @@ setup(
             'static_tf_publisher = carla_lidar_publisher.static_tf_publisher:main',
             'dynamic_tf_publisher = carla_lidar_publisher.dynamic_tf_publisher:main',
             'occupancy_grid_publisher = carla_lidar_publisher.occupancy_grid_publisher:main',
+            'traffic_light_detector = carla_lidar_publisher.traffic_light_detector:main',
         ],
     },
 )

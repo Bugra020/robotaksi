@@ -1,86 +1,100 @@
 import math
-import time
+import os
+import sys
 
 import carla
+import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import PointCloud2, PointField
+from sensor_msgs.msg import Image, PointCloud2, PointField
+from ultralytics import YOLO
 
 DEBUG_MODE = True
 
 
-def debug(debug_msg):
+def debug(msg):
     if DEBUG_MODE:
-        print(debug_msg)
+        print(msg)
 
 
 class LidarPublisher(Node):
     def __init__(self):
         super().__init__("lidar_publisher")
-        self.publisher = self.create_publisher(PointCloud2, "lidar_topic", 10)
-        debug("publisher created")
+        self.lidar_publisher = self.create_publisher(PointCloud2, "lidar_topic", 10)
+        self.camera_publisher = self.create_publisher(Image, "camera_topic", 10)
 
-        self.client = None
-        self.world = None
-        self.blueprint_lib = None
-        self.spectator = None
+        script_exec_path = sys.argv[0]
+        install_base_dir = os.path.abspath(
+            os.path.join(os.path.dirname(script_exec_path), "..", "..")
+        )
+        package_name = "carla_lidar_publisher"
+        self.model_filename = "VoltarisSim.pt"
+        self.model_path = os.path.join(
+            install_base_dir, "share", package_name, "models", self.model_filename
+        )
+
+        debug(f"Model path: {self.model_path}")
+
+        self.model = YOLO(self.model_path)
+
         self.connect_carla()
-        debug("compleated connecting to carla")
-
-        self.car = None
-        self.lidar_sensor = None
-        self.spawn_car_with_lidar()
+        self.spawn_car_with_sensors()
 
     def connect_carla(self):
         self.client = carla.Client("localhost", 2000)
         self.client.set_timeout(15.0)
-        debug("connected to carla")
         self.world = self.client.get_world()
-        debug("got the world from carla")
         self.blueprint_lib = self.world.get_blueprint_library()
-        debug("got the blueprint lib from carla")
         self.spectator = self.world.get_spectator()
 
-    def spawn_car_with_lidar(self):
-        debug("spawing car with lidar")
+    def spawn_car_with_sensors(self):
         lidar_bp = self.blueprint_lib.find("sensor.lidar.ray_cast")
         lidar_bp.set_attribute("channels", "32")
         lidar_bp.set_attribute("points_per_second", "100000")
         lidar_bp.set_attribute("rotation_frequency", "20")
         lidar_bp.set_attribute("range", "50")
 
+        camera_bp = self.blueprint_lib.find("sensor.camera.rgb")
+        camera_bp.set_attribute("image_size_x", "640")
+        camera_bp.set_attribute("image_size_y", "480")
+        camera_bp.set_attribute("fov", "90")
+        camera_bp.set_attribute("sensor_tick", "0.05")
+
         try:
             self.car = self.world.spawn_actor(
                 self.blueprint_lib.filter("model3")[0],
                 self.world.get_map().get_spawn_points()[1],
             )
-            debug("car spawned")
 
             lidar_transform = carla.Transform(carla.Location(x=0, y=0, z=2.5))
             self.lidar_sensor = self.world.spawn_actor(
                 lidar_bp, lidar_transform, attach_to=self.car
             )
-            debug("lidar spawned on top of the car")
+
+            camera_transform = carla.Transform(carla.Location(x=1.6, y=0, z=1.7))
+            self.camera_sensor = self.world.spawn_actor(
+                camera_bp, camera_transform, attach_to=self.car
+            )
 
             self.lidar_sensor.listen(self.lidar_callback)
+            self.camera_sensor.listen(self.camera_callback)
 
             self.car.set_autopilot(False)
-            debug("car with lidar spawned successfully")
 
             while True:
                 self.world.tick()
                 self.update_spectator_view()
-                # time.sleep(0.5)
         except KeyboardInterrupt:
-            print("\nkeyboardinterrupt killing the program")
+            pass
         finally:
-            if self.car is not None:
+            if self.car:
                 self.car.destroy()
-                print("destroyed the car")
-            if self.lidar_sensor is not None:
+            if self.lidar_sensor:
                 self.lidar_sensor.destroy()
-                print("destroyed the lidar sensor")
+            if self.camera_sensor:
+                self.camera_sensor.destroy()
+            cv2.destroyAllWindows()
 
     def update_spectator_view(self):
         if self.car is None or self.spectator is None:
@@ -90,45 +104,24 @@ class LidarPublisher(Node):
         location = transform.location
         rotation = transform.rotation
 
-
         yaw_rad = math.radians(rotation.yaw)
-
-        distance_behind = 10
-        height_above = 20
-
-        offset_x = -distance_behind * math.cos(yaw_rad)
-        offset_y = -distance_behind * math.sin(yaw_rad)
+        offset_x = -10 * math.cos(yaw_rad)
+        offset_y = -10 * math.sin(yaw_rad)
 
         camera_location = carla.Location(
             x=location.x + offset_x,
             y=location.y + offset_y,
-            z=location.z + height_above,
+            z=location.z + 20,
         )
-
         camera_rotation = carla.Rotation(pitch=-30, yaw=rotation.yaw, roll=0)
-
         self.spectator.set_transform(carla.Transform(camera_location, camera_rotation))
 
     def lidar_callback(self, data):
-        # np.frombuffer turns the raw data to a float32 array and reshaping makes it nx4 matrix. x,y,z and intensity
         points = np.frombuffer(data.raw_data, dtype=np.float32).reshape(-1, 4)
-
-        """ 
-        std_msgs/Header header
-            uint32 height
-            uint32 width
-        sensor_msgs/PointField[] fields
-            bool is_bigendian
-            uint32 point_step
-            uint32 row_step
-            uint8[] data
-            bool is_dense
-        """
 
         msg = PointCloud2()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = "lidar_frame"
-
         msg.fields = [
             PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
             PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
@@ -137,28 +130,62 @@ class LidarPublisher(Node):
                 name="intensity", offset=12, datatype=PointField.FLOAT32, count=1
             ),
         ]
-
-        msg.point_step = 16  # 4 fields * 4 bytes each = 16 bytes total
-        msg.row_step = msg.point_step * len(points)  # total size of the msg
+        msg.point_step = 16
+        msg.row_step = msg.point_step * len(points)
         msg.height = 1
         msg.width = len(points)
-
-        msg.is_dense = True  # true for ignoring nan and inf nums
+        msg.is_dense = True
         msg.is_bigendian = False
-        msg.data = points.astype(
-            np.float32
-        ).tobytes()  # converting numpy array to raw byte array
+        msg.data = points.astype(np.float32).tobytes()
+        self.lidar_publisher.publish(msg)
 
-        self.publisher.publish(msg)
-        # debug(f"published {msg.row_step} bytes of lidar data!")
+    def camera_callback(self, image_data):
+        img_array = np.frombuffer(image_data.raw_data, dtype=np.uint8)
+        img_array = img_array.reshape((image_data.height, image_data.width, 4))
+        rgb_image = cv2.cvtColor(img_array, cv2.COLOR_BGRA2RGB)
+
+        results = self.model(rgb_image)[0]
+        for box in results.boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            conf = box.conf[0].item()
+            cls_id = int(box.cls[0])
+            label = f"{self.model.names[cls_id]} {conf:.2f}"
+            cv2.rectangle(rgb_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(
+                rgb_image,
+                label,
+                (x1, y1 - 5),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+            )
+
+        cv2.imshow("Traffic Detection", cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR))
+        cv2.waitKey(1)
+
+        img_msg = Image()
+        img_msg.header.stamp = self.get_clock().now().to_msg()
+        img_msg.header.frame_id = "rgb_front_camera_frame"
+        img_msg.height = image_data.height
+        img_msg.width = image_data.width
+        img_msg.encoding = "bgra8"
+        img_msg.is_bigendian = False
+        img_msg.step = image_data.width * 4
+        img_msg.data = image_data.raw_data
+        self.camera_publisher.publish(img_msg)
 
 
 def main():
     rclpy.init()
     node = LidarPublisher()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
