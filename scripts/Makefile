@@ -1,7 +1,8 @@
 CARLA_SERVER=~/carla/Dist/CARLA_Shipping_0.9.15-262-g8f7e40f3c-dirty/LinuxNoEditor/CarlaUE4.sh
-CARLA_FLAGS=-RenderOffScreen -carla-map=Town01 -nosound -quality-level=Low -fps=10 -benchmark -carla-server
+#CARLA_FLAGS=-RenderOffScreen -nosound -quality-level=Low -fps=10 -benchmark -carla-server
+CARLA_FLAGS=-RenderOffScreen -nosound -fps=10 -benchmark -carla-server
 
-ROS_BRIDGE=ros2 launch carla_ros_bridge carla_ros_bridge.launch.py
+ROS_BRIDGE=ros2 launch carla_ros_bridge carla_ros_bridge.launch.py host:=host.docker.internal port:=2000
 LIDAR_PUBLISHER=ros2 run carla_lidar_publisher lidar_publisher
 STATIC_TF_PUBLISHER=ros2 run carla_lidar_publisher static_tf_publisher
 DYNAMIC_TF_PUBLISHER=ros2 run carla_lidar_publisher dynamic_tf_publisher
