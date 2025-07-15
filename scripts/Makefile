@@ -10,18 +10,18 @@ CLOUD_TO_GRID=ros2 run carla_lidar_publisher occupancy_grid_publisher
 
 run: kill
 	@echo "Starting CARLA Simulator in low-performance mode..."
-	@(${CARLA_SERVER} ${CARLA_FLAGS} > /dev/null 2>&1 &)
+	#@(${CARLA_SERVER} ${CARLA_FLAGS} > /dev/null 2>&1 &)
 	@sleep 15
 
 	@echo "Starting ROS2 Bridge..."
-	#@(${ROS_BRIDGE} > /dev/null 2>&1 &)
+	@(${ROS_BRIDGE} > /dev/null 2>&1 &)
 	@sleep 5
 	
 	@echo "Running the static tf publisher..."
-	@(${STATIC_TF_PUBLISHER} > /dev/null 2>&1 &)
+	#@(${STATIC_TF_PUBLISHER} > /dev/null 2>&1 &)
 	
 	@echo "Running the dynamic tf publisher..."
-	@(${DYNAMIC_TF_PUBLISHER} > /dev/null 2>&1 &)
+	#@(${DYNAMIC_TF_PUBLISHER} > /dev/null 2>&1 &)
 
 	@echo "Running the LIDAR Script..."
 	@(${LIDAR_PUBLISHER})
