@@ -40,7 +40,7 @@ def log_event(car, extra_msg=""):
 
 
 class CarlaConnector:
-    def __init__(self, host: str = "51.20.6.84", port: int = 2000):
+    def __init__(self, host: str = "localhost", port: int = 2000):
         self.client = None
         self.world = None
         self.blueprint_lib = None
