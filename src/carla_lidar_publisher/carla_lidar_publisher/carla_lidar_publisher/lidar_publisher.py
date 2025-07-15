@@ -3,22 +3,39 @@ import os
 import sys
 import threading
 import time
-from queue import Queue
+from queue import Empty, Queue
 
 import carla
 import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, PointCloud2, PointField
+from sensor_msgs.msg import Image
 from ultralytics import YOLO
 
 DEBUG_MODE = True
+LOG_PATH = "carla_log.txt"
 
 
 def debug(msg):
     if DEBUG_MODE:
         print(msg)
+
+
+def log_event(car, extra_msg=""):
+    transform = car.get_transform()
+    velocity = car.get_velocity()
+    traffic_light = car.get_traffic_light()
+    traffic_state = traffic_light.get_state() if traffic_light else "Unknown"
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
+    with open(LOG_PATH, "a") as f:
+        f.write(
+            f"[{timestamp}] Pos: ({transform.location.x:.2f}, {transform.location.y:.2f}), "
+            f"Speed: {math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2):.2f} m/s, "
+            f"Yaw: {transform.rotation.yaw:.2f}, "
+            f"Traffic Light: {traffic_state}, {extra_msg}\n"
+        )
 
 
 class CarlaConnector:
@@ -32,118 +49,18 @@ class CarlaConnector:
         self.connect()
 
     def connect(self):
-        connected = False
-        while not connected:
+        while True:
             try:
                 self.client = carla.Client(self.host, self.port)
                 self.client.set_timeout(30.0)
-                #self.world = self.client.load_world("Town01")
-                self.world = self.client.get_world()
+                self.world = self.client.load_world("Town01")
                 self.blueprint_lib = self.world.get_blueprint_library()
                 self.spectator = self.world.get_spectator()
-                connected = True
                 debug("Connected to CARLA simulator.")
+                break
             except RuntimeError as e:
                 debug(f"CARLA not ready yet: {e}")
                 time.sleep(2)
-
-
-class LidarPublisher(Node):
-    def __init__(self, connector: CarlaConnector):
-        super().__init__("lidar_publisher")
-        self.lidar_publisher = self.create_publisher(PointCloud2, "lidar_topic", 10)
-        self.connector = connector
-        self.world = connector.world
-        self.spectator = connector.spectator
-        self.bp_lib = connector.blueprint_lib
-        self.car = None
-        self.lidar_sensor = None
-
-        while self.world.get_map() is None:
-            debug("Waiting for map to load...")
-            time.sleep(1)
-        self.spawn_lidar_vehicle()
-
-    def spawn_lidar_vehicle(self):
-        lidar_bp = self.bp_lib.find("sensor.lidar.ray_cast")
-        lidar_bp.set_attribute("channels", "32")
-        lidar_bp.set_attribute("points_per_second", "100000")
-        lidar_bp.set_attribute("rotation_frequency", "20")
-        lidar_bp.set_attribute("range", "50")
-
-        try:
-            self.car = self.world.spawn_actor(
-                self.bp_lib.filter("model3")[0],
-                self.world.get_map().get_spawn_points()[1],
-            )
-
-            lidar_transform = carla.Transform(carla.Location(x=0, y=0, z=2.5))
-            self.lidar_sensor = self.world.spawn_actor(
-                lidar_bp, lidar_transform, attach_to=self.car
-            )
-
-            self.world.tick()
-            time.sleep(1)
-            self.world.tick()
-
-            self.lidar_sensor.listen(self.lidar_callback)
-            self.car.set_autopilot(True)
-            tm = self.connector.client.get_trafficmanager()
-            tm.set_global_distance_to_leading_vehicle(2.0)
-            tm.vehicle_percentage_speed_difference(self.car, 90.0)
-
-            while rclpy.ok():
-                self.world.wait_for_tick(15.0)
-                self.update_spectator_view()
-
-        except RuntimeError as e:
-            print(f"CARLA error: {e}")
-        finally:
-            if self.car:
-                self.car.destroy()
-            if self.lidar_sensor:
-                self.lidar_sensor.destroy()
-            if hasattr(self, "gnss_sensor"):
-                self.gnss_sensor.destroy()
-
-    def lidar_callback(self, data):
-        points = np.frombuffer(data.raw_data, dtype=np.float32).reshape(-1, 4)
-        msg = PointCloud2()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "lidar_frame"
-        msg.fields = [
-            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
-            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
-            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
-            PointField(
-                name="intensity", offset=12, datatype=PointField.FLOAT32, count=1
-            ),
-        ]
-        msg.point_step = 16
-        msg.row_step = msg.point_step * len(points)
-        msg.height = 1
-        msg.width = len(points)
-        msg.is_dense = True
-        msg.is_bigendian = False
-        msg.data = points.astype(np.float32).tobytes()
-        self.lidar_publisher.publish(msg)
-
-    def update_spectator_view(self):
-        if self.car is None or self.spectator is None:
-            return
-        transform = self.car.get_transform()
-        location = transform.location
-        rotation = transform.rotation
-        yaw_rad = math.radians(rotation.yaw)
-        offset_x = -10 * math.cos(yaw_rad)
-        offset_y = -10 * math.sin(yaw_rad)
-        camera_location = carla.Location(
-            x=location.x + offset_x,
-            y=location.y + offset_y,
-            z=location.z + 20,
-        )
-        camera_rotation = carla.Rotation(pitch=-30, yaw=rotation.yaw, roll=0)
-        self.spectator.set_transform(carla.Transform(camera_location, camera_rotation))
 
 
 class CameraPublisher(Node):
@@ -166,14 +83,20 @@ class CameraPublisher(Node):
             "VoltarisSim.pt",
         )
         self.model = YOLO(self.model_path)
+
         self.frame_queue = Queue(maxsize=2)
+        self.frame_to_show = None
+        self.frame_lock = threading.Lock()
 
         while self.world.get_map() is None:
             debug("Waiting for map to load...")
             time.sleep(1)
 
         self.spawn_camera_vehicle()
+
         threading.Thread(target=self.process_frames, daemon=True).start()
+        threading.Thread(target=self.display_loop, daemon=True).start()
+        threading.Thread(target=self.log_loop, daemon=True).start()
 
     def spawn_camera_vehicle(self):
         try:
@@ -186,11 +109,7 @@ class CameraPublisher(Node):
             gnss_sensor = self.world.spawn_actor(
                 gnss_bp, carla.Transform(), attach_to=self.car
             )
-
-            def gnss_callback(data):
-                print(f"Origin GNSS: lat={data.latitude}, lon={data.longitude}")
-
-            gnss_sensor.listen(gnss_callback)
+            gnss_sensor.listen(lambda data: None)
             self.gnss_sensor = gnss_sensor
 
             camera_bp = self.bp_lib.find("sensor.camera.rgb")
@@ -198,14 +117,15 @@ class CameraPublisher(Node):
             camera_bp.set_attribute("image_size_x", "480")
             camera_bp.set_attribute("image_size_y", "360")
             camera_bp.set_attribute("fov", "90")
-            # camera_bp.set_attribute("sensor_tick", "0.05")
             camera_transform = carla.Transform(carla.Location(x=1.6, y=0, z=1.7))
 
             self.camera_sensor = self.world.spawn_actor(
                 camera_bp, camera_transform, attach_to=self.car
             )
             self.camera_sensor.listen(self.camera_callback)
+
             self.car.set_autopilot(True)
+
             tm = self.connector.client.get_trafficmanager()
             tm.set_global_distance_to_leading_vehicle(2.0)
             tm.vehicle_percentage_speed_difference(self.car, 70.0)
@@ -218,10 +138,10 @@ class CameraPublisher(Node):
             img_array = np.frombuffer(image_data.raw_data, dtype=np.uint8).reshape(
                 (image_data.height, image_data.width, 4)
             )
-            rgb_image = cv2.cvtColor(img_array, cv2.COLOR_BGRA2RGB)
+            bgr_image = cv2.cvtColor(img_array, cv2.COLOR_BGRA2BGR)
 
             if not self.frame_queue.full():
-                self.frame_queue.put(rgb_image)
+                self.frame_queue.put(bgr_image)
 
             img_msg = Image()
             img_msg.header.stamp = self.get_clock().now().to_msg()
@@ -241,11 +161,10 @@ class CameraPublisher(Node):
         while True:
             try:
                 frame = self.frame_queue.get(timeout=1)
-            except queue.Empty:
+            except Empty:
                 continue
 
-            # results = self.model(frame)[0]
-            results = self.model(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))[0]
+            results = self.model(frame)[0]  # Already BGR, no need to convert
 
             for box in results.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -262,18 +181,30 @@ class CameraPublisher(Node):
                     (255, 255, 255),
                     1,
                 )
-            cv2.imshow("Traffic Detection", cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-            cv2.waitKey(1)
+
+            with self.frame_lock:
+                self.frame_to_show = frame
+
+    def display_loop(self):
+        while True:
+            with self.frame_lock:
+                if self.frame_to_show is not None:
+                    cv2.imshow("Traffic Detection", self.frame_to_show)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+            time.sleep(0.01)
+
+    def log_loop(self):
+        while rclpy.ok():
+            if hasattr(self, "car") and self.car is not None:
+                log_event(self.car)
+            time.sleep(0.5)
 
 
 def main():
     rclpy.init()
     connector = CarlaConnector()
-    node_type = "camera"
-    if node_type == "camera":
-        node = CameraPublisher(connector)
-    else:
-        node = LidarPublisher(connector)
+    node = CameraPublisher(connector)
 
     try:
         rclpy.spin(node)
@@ -282,6 +213,7 @@ def main():
     finally:
         node.destroy_node()
         rclpy.shutdown()
+        cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
