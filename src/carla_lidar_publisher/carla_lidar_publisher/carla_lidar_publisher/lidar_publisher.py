@@ -15,7 +15,8 @@ from ultralytics import YOLO
 
 DEBUG_MODE = True
 LOG_PATH = "carla_log.txt"
-
+SAVE_DIR = "/home/ubuntu/carla_frames"
+os.makedirs(SAVE_DIR, exist_ok=True)
 
 def debug(msg):
     if DEBUG_MODE:
@@ -39,7 +40,7 @@ def log_event(car, extra_msg=""):
 
 
 class CarlaConnector:
-    def __init__(self, host: str = "localhost", port: int = 2000):
+    def __init__(self, host: str = "51.20.6.84", port: int = 2000):
         self.client = None
         self.world = None
         self.blueprint_lib = None
@@ -66,6 +67,8 @@ class CarlaConnector:
 class CameraPublisher(Node):
     def __init__(self, connector: CarlaConnector):
         super().__init__("camera_publisher")
+
+        self.frame_index = 0  # inside CameraPublisher __init__ after creating SAVE_DIR
         self.camera_publisher = self.create_publisher(Image, "camera_topic", 10)
         self.connector = connector
         self.world = connector.world
@@ -95,7 +98,7 @@ class CameraPublisher(Node):
         self.spawn_camera_vehicle()
 
         threading.Thread(target=self.process_frames, daemon=True).start()
-        threading.Thread(target=self.display_loop, daemon=True).start()
+        #threading.Thread(target=self.display_loop, daemon=True).start()
         threading.Thread(target=self.log_loop, daemon=True).start()
 
     def spawn_camera_vehicle(self):
@@ -164,7 +167,7 @@ class CameraPublisher(Node):
             except Empty:
                 continue
 
-            results = self.model(frame)[0]  # Already BGR, no need to convert
+            results = self.model(frame)[0]
 
             for box in results.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -182,8 +185,10 @@ class CameraPublisher(Node):
                     1,
                 )
 
-            with self.frame_lock:
-                self.frame_to_show = frame
+            # Save frame to disk
+            filename = os.path.join(SAVE_DIR, f"frame_{self.frame_index:06d}.png")
+            cv2.imwrite(filename, frame)
+            self.frame_index += 1
 
     def display_loop(self):
         while True:
