@@ -14,7 +14,7 @@ run: kill
 	@sleep 15
 
 	@echo "Starting ROS2 Bridge..."
-	@(${ROS_BRIDGE} > /dev/null 2>&1 &)
+	#@(${ROS_BRIDGE} > /dev/null 2>&1 &)
 	@sleep 5
 	
 	@echo "Running the static tf publisher..."
