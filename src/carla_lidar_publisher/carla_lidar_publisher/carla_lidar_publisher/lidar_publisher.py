@@ -116,9 +116,9 @@ class CameraPublisher(Node):
             self.gnss_sensor = gnss_sensor
 
             camera_bp = self.bp_lib.find("sensor.camera.rgb")
-            camera_bp.set_attribute("sensor_tick", "0.1")
-            camera_bp.set_attribute("image_size_x", "480")
-            camera_bp.set_attribute("image_size_y", "360")
+            camera_bp.set_attribute("sensor_tick", "0.033")
+            camera_bp.set_attribute("image_size_x", "1920")
+            camera_bp.set_attribute("image_size_y", "1080")
             camera_bp.set_attribute("fov", "90")
             camera_transform = carla.Transform(carla.Location(x=1.6, y=0, z=1.7))
 
